@@ -1,0 +1,322 @@
+<?php
+// setup.php - Database Setup Wizard for cPanel
+session_start();
+
+// If config exists and working, redirect to viewer
+if (file_exists('config.php') && !isset($_GET['force'])) {
+    require_once 'config.php';
+    $test = testDatabaseConnection();
+    if ($test['success']) {
+        header('Location: viewer/');
+        exit;
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XtraBet LiveScore - Setup Wizard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .setup-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-top: 50px;
+            overflow: hidden;
+        }
+        .setup-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .setup-body {
+            padding: 40px;
+        }
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .step {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e9ecef;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin: 0 10px;
+        }
+        .step.active {
+            background: #4f46e5;
+            color: white;
+        }
+        .step.completed {
+            background: #10b981;
+            color: white;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #374151;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #4f46e5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="setup-card">
+                    <div class="setup-header">
+                        <h1><i class="fas fa-futbol"></i> XtraBet LiveScore</h1>
+                        <p class="mb-0">Database Setup Wizard</p>
+                    </div>
+                    
+                    <div class="setup-body">
+                        <?php if (isset($_POST['setup'])): ?>
+                            <?php
+                            // Process form submission
+                            $host = $_POST['host'];
+                            $username = $_POST['username'];
+                            $password = $_POST['password'];
+                            $database = $_POST['database'];
+                            
+                            // Test connection
+                            $test_conn = @new mysqli($host, $username, $password, $database);
+                            
+                            if ($test_conn->connect_error): ?>
+                                <div class="alert alert-danger">
+                                    <h4><i class="fas fa-exclamation-triangle"></i> Connection Failed</h4>
+                                    <p><strong>Error:</strong> <?php echo htmlspecialchars($test_conn->connect_error); ?></p>
+                                    <p>Please check your credentials and try again.</p>
+                                    <hr>
+                                    <h5>Common Solutions:</h5>
+                                    <ul>
+                                        <li>Make sure database user has proper permissions</li>
+                                        <li>Check if database name is correct</li>
+                                        <li>Verify password is correct</li>
+                                        <li>Contact your hosting provider if unsure</li>
+                                    </ul>
+                                    <a href="setup.php" class="btn btn-danger">
+                                        <i class="fas fa-redo"></i> Try Again
+                                    </a>
+                                </div>
+                            <?php else: 
+                                // Create config file
+                                $config_content = '<?php
+// XtraBet LiveScore - Database Configuration
+// Generated by setup wizard on ' . date('Y-m-d H:i:s') . '
+
+// Database Configuration
+$db_host = \'' . addslashes($host) . '\';
+$db_user = \'' . addslashes($username) . '\';
+$db_pass = \'' . addslashes($password) . '\';
+$db_name = \'' . addslashes($database) . '\';
+
+error_reporting(0);
+ini_set(\'display_errors\', 0);
+
+// Function to get database connection
+function getDBConnection() {
+    global $db_host, $db_user, $db_pass, $db_name, \$conn;
+    
+    if (\$conn !== null && \$conn->ping()) {
+        return \$conn;
+    }
+    
+    \$conn = new mysqli(\$db_host, \$db_user, \$db_pass, \$db_name);
+    
+    if (\$conn->connect_error) {
+        error_log("Database Connection Failed: " . \$conn->connect_error);
+        return false;
+    }
+    
+    \$conn->set_charset("utf8mb4");
+    return \$conn;
+}
+
+// Check if database connection works
+function testDatabaseConnection() {
+    global \$db_host, \$db_user, \$db_pass, \$db_name;
+    
+    \$test_conn = @new mysqli(\$db_host, \$db_user, \$db_pass, \$db_name);
+    
+    if (\$test_conn->connect_error) {
+        return [
+            \'success\' => false,
+            \'error\' => \$test_conn->connect_error
+        ];
+    }
+    
+    \$tables_check = \$test_conn->query("SHOW TABLES LIKE \'matches\'");
+    \$tables_exist = \$tables_check && \$tables_check->num_rows > 0;
+    
+    \$test_conn->close();
+    
+    return [
+        \'success\' => true,
+        \'tables_exist\' => \$tables_exist
+    ];
+}
+
+date_default_timezone_set(\'UTC\');
+?>';
+
+                                if (file_put_contents('config.php', $config_content)): 
+                                    // Check if tables exist
+                                    $tables_sql = "SHOW TABLES LIKE 'matches'";
+                                    $result = $test_conn->query($tables_sql);
+                                    $tables_exist = $result && $result->num_rows > 0;
+                                    
+                                    $test_conn->close();
+                                    ?>
+                                    
+                                    <div class="alert alert-success">
+                                        <h4><i class="fas fa-check-circle"></i> Success!</h4>
+                                        <p>Database connection established successfully.</p>
+                                        
+                                        <?php if ($tables_exist): ?>
+                                            <div class="alert alert-info">
+                                                <h5><i class="fas fa-database"></i> Database Tables Found</h5>
+                                                <p>Your database already has the required tables.</p>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="alert alert-warning">
+                                                <h5><i class="fas fa-exclamation-triangle"></i> Database Tables Missing</h5>
+                                                <p>You need to import the database structure.</p>
+                                            </div>
+                                        <?php endif; ?>
+                                        
+                                        <hr>
+                                        
+                                        <div class="row">
+                                            <?php if ($tables_exist): ?>
+                                                <div class="col-md-6 mb-2">
+                                                    <a href="viewer/" class="btn btn-success w-100">
+                                                        <i class="fas fa-tv"></i> Go to Live Scores
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-6 mb-2">
+                                                    <a href="admin/" class="btn btn-primary w-100">
+                                                        <i class="fas fa-cog"></i> Go to Admin Panel
+                                                    </a>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="col-md-6 mb-2">
+                                                    <a href="database/live_score.sql" class="btn btn-info w-100" download>
+                                                        <i class="fas fa-download"></i> Download SQL File
+                                                    </a>
+                                                </div>
+                                                <div class="col-md-6 mb-2">
+                                                    <a href="viewer/" class="btn btn-success w-100">
+                                                        <i class="fas fa-play"></i> Continue Anyway
+                                                    </a>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    
+                                <?php else: ?>
+                                    <div class="alert alert-danger">
+                                        <h4><i class="fas fa-times-circle"></i> File Permission Error</h4>
+                                        <p>Unable to create config.php file.</p>
+                                        <p><strong>Manual Setup Required:</strong></p>
+                                        <ol>
+                                            <li>Create a file named <code>config.php</code> in the root folder</li>
+                                            <li>Copy the configuration code shown below</li>
+                                            <li>Save the file</li>
+                                        </ol>
+                                        <textarea class="form-control" rows="10" readonly><?php echo htmlspecialchars($config_content); ?></textarea>
+                                    </div>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            
+                        <?php else: ?>
+                            <div class="step-indicator">
+                                <div class="step active">1</div>
+                                <div class="step">2</div>
+                            </div>
+                            
+                            <h3 class="mb-4">Database Configuration</h3>
+                            
+                            <?php if (isset($_SESSION['db_error'])): ?>
+                                <div class="alert alert-warning">
+                                    <h5><i class="fas fa-exclamation-circle"></i> Previous Error</h5>
+                                    <p><?php echo htmlspecialchars($_SESSION['db_error']); ?></p>
+                                    <?php unset($_SESSION['db_error']); ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <div class="info-box">
+                                <h6><i class="fas fa-info-circle"></i> Where to find these credentials?</h6>
+                                <p class="mb-1">1. Login to cPanel</p>
+                                <p class="mb-1">2. Go to <strong>MySQL Databases</strong></p>
+                                <p class="mb-0">3. Create or use existing database/user</p>
+                            </div>
+                            
+                            <form method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Database Host</label>
+                                    <input type="text" class="form-control" name="host" value="localhost" required>
+                                    <div class="form-text">Usually "localhost" for cPanel hosting</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Database Username</label>
+                                    <input type="text" class="form-control" name="username" 
+                                           placeholder="cpanelusername_dbuser" required>
+                                    <div class="form-text">Format: cpanelusername_dbuser</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Database Password</label>
+                                    <input type="password" class="form-control" name="password" required>
+                                    <div class="form-text">The password you set for the database user</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label">Database Name</label>
+                                    <input type="text" class="form-control" name="database" 
+                                           placeholder="cpanelusername_database" required>
+                                    <div class="form-text">Format: cpanelusername_database</div>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="submit" name="setup" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-plug"></i> Test & Save Connection
+                                    </button>
+                                    <a href="viewer/" class="btn btn-outline-secondary">
+                                        Skip Setup (Use Default)
+                                    </a>
+                                </div>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="text-center text-white mt-4">
+                    <small>XtraBet LiveScore &copy; 2025 | Need help? Contact your hosting provider</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Create file via cPanel File Manager:
+# 1. Go to viewer folder
+# 2. Create new file named "last_update.txt"
+# 3. Put "0" as the content
